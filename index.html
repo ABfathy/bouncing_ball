@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bouncing Ball Game</title>
+    <style>
+        body {
+            background-color: #1c1d21;
+            color: #ecf0f1;
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        #start-screen {
+            text-align: center;
+            padding: 40px;
+            background-color: #0b0c10;
+            border: 2px solid #2c3e69;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(75, 108, 183, 0.5);
+        }
+
+        #start-screen h1 {
+            margin-bottom: 30px;
+            color: #61dafb;
+        }
+
+        .canvas-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            margin: 20px auto;
+            display: none;
+        }
+
+        canvas {
+            background-color: #0b0c10;
+            border: 2px solid #2c3e69;
+        }
+
+        .buttons {
+            text-align: center;
+            display: none;
+        }
+
+        button {
+            padding: 12px 25px;
+            margin: 10px;
+            font-size: 18px;
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(145deg, #4b6cb7, #182848);
+            border: 1px solid #2c3e69;
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.5);
+            box-shadow: 3px 3px 6px rgba(0, 0, 0, 0.2), -3px -3px 6px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            background: linear-gradient(145deg, #5a7ecb, #1e325a);
+            transform: translateY(-2px);
+            box-shadow: 4px 4px 8px rgba(0, 0, 0, 0.3), -4px -4px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        button:active {
+            background: linear-gradient(145deg, #3b5572, #121c34);
+            transform: translateY(1px);
+            box-shadow: inset 2px 2px 4px rgba(0, 0, 0, 0.2), inset -2px -2px 4px rgba(0, 0, 0, 0.2);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="start-screen">
+        <h1>Bouncing Ball</h1>
+        <button onclick="selectGameMode(1)">1 Player</button>
+        <button onclick="selectGameMode(2)">2 Players</button>
+    </div>
+
+    <div class="buttons">
+        <button id="start-button" onclick="startButton()">START / RESUME</button>
+        <button id="restart-button" onclick="restartButton()">RESTART / NEW GAME</button>
+    </div>
+
+    <div id="game-area-container">
+        <!-- Canvases will be added here by JavaScript -->
+    </div>
+
+    <script>
+        let gameMode = null;
+        let gameStarted = false;
+        let gameOver = false;
+        let animationFrameId = null;
+
+        let canvas1, context1;
+        let blocks1 = [];
+        let paddle1;
+        let ball1;
+        let score1;
+        let scoreValue1 = 0;
+        let lives1;
+        let livesValue1 = 3;
+        let idleText1 = null;
+        let winText1 = null;
+        let loseText1 = null;
+        let ball1Active = false;
+        let paddle1Direction = 0;
+        let player1Respawning = false;
+        let respawnTimer1 = null;
+        let respawnIntervalId1 = null;
+
+        let canvas2, context2;
+        let blocks2 = [];
+        let paddle2;
+        let ball2;
+        let score2;
+        let scoreValue2 = 0;
+        let lives2;
+        let livesValue2 = 3;
+        let idleText2 = null;
+        let winText2 = null;
+        let loseText2 = null;
+        let ball2Active = false;
+        let paddle2Direction = 0;
+        let player2Respawning = false;
+        let respawnTimer2 = null;
+        let respawnIntervalId2 = null;
+
+        const PADDLE_SPEED = 5;
+        const BALL_START_SPEED_Y = 4;
+        const RESPAWN_DELAY = 3000;
+
+        const startScreen = document.getElementById('start-screen');
+        const gameButtons = document.querySelector('.buttons');
+        const gameAreaContainer = document.getElementById('game-area-container');
+        const startBtn = document.getElementById('start-button');
+        const restartBtn = document.getElementById('restart-button');
+
+
+        function selectGameMode(mode) {
+            gameMode = mode;
+            startScreen.style.display = 'none';
+            gameButtons.style.display = 'block';
+            gameAreaContainer.style.display = 'flex';
+            initializeGame(mode);
+        }
+
+        function initializeGame(mode) {
+            gameAreaContainer.innerHTML = '';
+
+            canvas1 = document.createElement("canvas");
+            canvas1.height = 600;
+            canvas1.width = 520;
+            context1 = canvas1.getContext("2d");
+            gameAreaContainer.appendChild(canvas1);
+
+            blocks1 = [];
+            createBlocks(blocks1, context1);
+            paddle1 = createPaddle(canvas1, context1);
+            ball1 = createBall(canvas1, context1, "#61dafb");
+            score1 = new ScoreLivesText(10, 23, "18px Arial", "white", "P1 Score: ", context1);
+            lives1 = new ScoreLivesText(420, 23, "18px Arial", "white", "P1 Lives: ", context1);
+            idleText1 = new ShowText(160, 230, "20px Arial", "lime", "Click START to play", context1);
+
+            if (mode === 2) {
+                canvas2 = document.createElement("canvas");
+                canvas2.height = 600;
+                canvas2.width = 520;
+                context2 = canvas2.getContext("2d");
+                gameAreaContainer.appendChild(canvas2);
+
+                blocks2 = [];
+                createBlocks(blocks2, context2);
+                paddle2 = createPaddle(canvas2, context2);
+                ball2 = createBall(canvas2, context2, "#ffcc00");
+                score2 = new ScoreLivesText(10, 23, "18px Arial", "white", "P2 Score: ", context2);
+                lives2 = new ScoreLivesText(420, 23, "18px Arial", "white", "P2 Lives: ", context2);
+                idleText2 = new ShowText(160, 230, "20px Arial", "lime", "Click START to play", context2);
+            }
+
+            resetGameVariables();
+
+            if (!animationFrameId) {
+                gameLoop();
+            } else {
+                clearCanvas();
+                drawGameElements();
+            }
+        }
+
+         function resetGameVariables() {
+            gameOver = false;
+            gameStarted = false;
+            ball1Active = false;
+            ball2Active = false;
+            player1Respawning = false;
+            player2Respawning = false;
+            paddle1Direction = 0;
+            paddle2Direction = 0;
+
+            scoreValue1 = 0;
+            livesValue1 = 3;
+            winText1 = null;
+            loseText1 = null;
+            idleText1 = null;
+            respawnTimer1 = null;
+            if (respawnIntervalId1) clearInterval(respawnIntervalId1);
+            respawnIntervalId1 = null;
+
+             if (ball1) ball1.reset();
+
+            if (gameMode === 2) {
+                scoreValue2 = 0;
+                livesValue2 = 3;
+                winText2 = null;
+                loseText2 = null;
+                idleText2 = null;
+                respawnTimer2 = null;
+                if (respawnIntervalId2) clearInterval(respawnIntervalId2);
+                respawnIntervalId2 = null;
+
+                if (ball2) ball2.reset();
+            }
+             if (canvas1 && !gameStarted && !gameOver) {
+                 idleText1 = new ShowText(160, 230, "20px Arial", "lime", "Click START to play", context1);
+             }
+             if (gameMode === 2 && canvas2 && !gameStarted && !gameOver) {
+                 idleText2 = new ShowText(160, 230, "20px Arial", "lime", "Click START to play", context2);
+             }
+        }
+
+        function createBlocks(blockArray, ctx) {
+            blockArray.length = 0;
+            const blockWidth = 60;
+            const blockHeight = 20;
+            const padding = 10;
+            const offsetTop = 35;
+            const offsetLeft = 20;
+            const blockRowCount = 5;
+            const blockColCount = 7;
+            const colors = ["#e74c3c", "#f39c12", "#f1c40f", "#2ecc71", "#3498db"];
+
+            for (let row = 0; row < blockRowCount; row++) {
+                for (let col = 0; col < blockColCount; col++) {
+                    const x = offsetLeft + col * (blockWidth + padding);
+                    const y = offsetTop + row * (blockHeight + padding);
+                    const color = colors[row % colors.length];
+                    const block = new DrawBlockPaddle(blockWidth, blockHeight, color, x, y, ctx);
+                    blockArray.push(block);
+                }
+            }
+        }
+
+        function createPaddle(canvas, ctx) {
+            const paddleWidth = 100;
+            const paddleHeight = 15;
+            let paddleX = (canvas.width - paddleWidth) / 2;
+            let paddleY = canvas.height - paddleHeight - 10;
+            return new DrawBlockPaddle(paddleWidth, paddleHeight, "lightgrey", paddleX, paddleY, ctx);
+        }
+
+        function createBall(canvas, ctx, color) {
+            let ballX = canvas.width / 2;
+            let ballY = canvas.height / 2 + 50;
+            return new DrawBall(ballX, ballY, 10, color, ctx, canvas);
+        }
+
+         function DrawBlockPaddle(width, height, color, x, y, context) {
+            this.width = width;
+            this.height = height;
+            this.x = x;
+            this.y = y;
+            this.context = context;
+            this.color = color;
+
+            this.update = function () {
+                let ctx = this.context;
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+            }
+        }
+
+        function DrawBall(x, y, r, color, context, canvas) {
+            this.initialX = x;
+            this.initialY = y;
+            this.x = x;
+            this.y = y;
+            this.r = r;
+            this.color = color;
+            this.speedX = 0;
+            this.speedY = 0;
+            this.context = context;
+            this.canvas = canvas;
+
+            this.update = function () {
+                let ctx = this.context;
+                ctx.beginPath();
+                ctx.fillStyle = this.color;
+                ctx.arc(this.x, this.y, this.r, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.closePath();
+            }
+
+            this.reset = function() {
+                this.x = this.initialX;
+                this.y = this.initialY;
+                this.speedX = 0;
+                this.speedY = 0;
+            }
+        }
+
+        function ScoreLivesText(x, y, font, color, label, context) {
+            this.value = 0;
+            this.label = label;
+            this.context = context;
+            this.update = function () {
+                let ctx = this.context;
+                ctx.font = font;
+                ctx.fillStyle = color;
+                ctx.fillText(this.label + this.value, x, y);
+            }
+        }
+
+        function ShowText(x, y, font, color, text, context) {
+            this.font = font;
+            this.x = x;
+            this.y = y;
+            this.color = color;
+            this.text = text;
+            this.context = context;
+            this.update = function () {
+                let ctx = this.context;
+                ctx.font = this.font;
+                ctx.fillStyle = this.color;
+                ctx.fillText(this.text, this.x, this.y);
+            }
+        }
+
+
+        function gameLoop() {
+            if (gameOver) {
+                drawGameElements();
+                return;
+            }
+            updateGameArea();
+            drawGameElements();
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        function clearCanvas() {
+             if (context1) context1.clearRect(0, 0, canvas1.width, canvas1.height);
+             if (gameMode === 2 && context2) context2.clearRect(0, 0, canvas2.width, canvas2.height);
+        }
+
+        function updateGameArea() {
+
+            if (canvas1) {
+                paddle1.x += paddle1Direction * PADDLE_SPEED;
+                paddle1.x = Math.max(0, Math.min(paddle1.x, canvas1.width - paddle1.width));
+
+                if (ball1Active && !player1Respawning) {
+                    ball1.x += ball1.speedX;
+                    ball1.y += ball1.speedY;
+                    ballHitDetection(ball1, paddle1, blocks1, 1);
+                } else if (!ball1Active && livesValue1 > 0 && gameStarted && !player1Respawning && !gameOver) {
+                    ball1.x = paddle1.x + paddle1.width / 2;
+                    ball1.y = paddle1.y - ball1.r - 2;
+                }
+
+                score1.value = scoreValue1;
+                lives1.value = livesValue1;
+            }
+
+            if (gameMode === 2 && canvas2) {
+                paddle2.x += paddle2Direction * PADDLE_SPEED;
+                paddle2.x = Math.max(0, Math.min(paddle2.x, canvas2.width - paddle2.width));
+
+                if (ball2Active && !player2Respawning) {
+                    ball2.x += ball2.speedX;
+                    ball2.y += ball2.speedY;
+                    ballHitDetection(ball2, paddle2, blocks2, 2);
+                 } else if (!ball2Active && livesValue2 > 0 && gameStarted && !player2Respawning && !gameOver) {
+                    ball2.x = paddle2.x + paddle2.width / 2;
+                    ball2.y = paddle2.y - ball2.r - 2;
+                }
+
+                score2.value = scoreValue2;
+                lives2.value = livesValue2;
+            }
+        }
+
+        function drawGameElements() {
+            clearCanvas();
+
+            if (canvas1) {
+                for (let block of blocks1) block.update();
+                paddle1.update();
+                ball1.update();
+                score1.update();
+                lives1.update();
+                if (idleText1) idleText1.update();
+                if (winText1) winText1.update();
+                if (loseText1) loseText1.update();
+                if (respawnTimer1) respawnTimer1.update();
+            }
+
+            if (gameMode === 2 && canvas2) {
+                for (let block of blocks2) block.update();
+                paddle2.update();
+                ball2.update();
+                score2.update();
+                lives2.update();
+                if (idleText2) idleText2.update();
+                if (winText2) winText2.update();
+                if (loseText2) loseText2.update();
+                if (respawnTimer2) respawnTimer2.update();
+            }
+        }
+
+        function startButton() {
+            if (gameOver) return;
+
+            if (!gameStarted) {
+                gameStarted = true;
+                idleText1 = null;
+                if (gameMode === 2) idleText2 = null;
+                 addInputListeners();
+            }
+
+             if (livesValue1 > 0 && !ball1Active && !player1Respawning) {
+                 ball1Active = true;
+                 ball1.speedY = -BALL_START_SPEED_Y;
+                 ball1.speedX = (Math.random() - 0.5) * 2;
+             }
+             if (gameMode === 2 && livesValue2 > 0 && !ball2Active && !player2Respawning) {
+                 ball2Active = true;
+                 ball2.speedY = -BALL_START_SPEED_Y;
+                 ball2.speedX = (Math.random() - 0.5) * 2;
+             }
+        }
+
+        function addInputListeners() {
+            document.addEventListener("keydown", handleKeyDown);
+            document.addEventListener("keyup", handleKeyUp);
+        }
+
+        function removeInputListeners() {
+            document.removeEventListener("keydown", handleKeyDown);
+            document.removeEventListener("keyup", handleKeyUp);
+            paddle1Direction = 0;
+            paddle2Direction = 0;
+        }
+
+        function handleKeyDown(e) {
+             if (gameOver) return;
+
+            if (e.keyCode === 37) paddle1Direction = -1;
+            else if (e.keyCode === 39) paddle1Direction = 1;
+
+            if (gameMode === 2) {
+                if (e.key === 'a' || e.key === 'A') paddle2Direction = -1;
+                else if (e.key === 'd' || e.key === 'D') paddle2Direction = 1;
+            }
+        }
+
+        function handleKeyUp(e) {
+            if (e.keyCode === 37 || e.keyCode === 39) {
+                paddle1Direction = 0;
+            }
+
+            if (gameMode === 2) {
+                if (e.key === 'a' || e.key === 'A' || e.key === 'd' || e.key === 'D') {
+                    paddle2Direction = 0;
+                }
+            }
+        }
+
+        function ballHitDetection(ball, paddle, blocks, playerIndex) {
+             if (gameOver) return;
+
+            const ballTop = ball.y - ball.r;
+            const ballBottom = ball.y + ball.r;
+            const ballRight = ball.x + ball.r;
+            const ballLeft = ball.x - ball.r;
+
+            const canvas = (playerIndex === 1) ? canvas1 : canvas2;
+
+            if (ballLeft <= 0 || ballRight >= canvas.width) {
+                ball.speedX *= -1;
+                ball.x = (ballLeft <= 0) ? ball.r : canvas.width - ball.r;
+            }
+            if (ballTop <= 0) {
+                ball.speedY *= -1;
+                ball.y = ball.r;
+            }
+
+            if (ball.speedY > 0 && ballBottom >= paddle.y && ballTop <= paddle.y + paddle.height && ballRight >= paddle.x && ballLeft <= paddle.x + paddle.width) {
+                 let hitPosition = (ball.x - (paddle.x + paddle.width / 2)) / (paddle.width / 2);
+                 hitPosition = Math.max(-0.9, Math.min(0.9, hitPosition));
+
+                 const maxBounceAngle = (70 * Math.PI) / 180;
+                 const bounceAngle = hitPosition * maxBounceAngle;
+                 const currentSpeed = Math.sqrt(ball.speedX ** 2 + ball.speedY ** 2);
+
+                 ball.speedX = currentSpeed * Math.sin(bounceAngle);
+                 ball.speedY = -Math.abs(currentSpeed * Math.cos(bounceAngle));
+                 ball.y = paddle.y - ball.r;
+            }
+
+            for (let i = blocks.length - 1; i >= 0; i--) {
+                let block = blocks[i];
+                if (ballRight > block.x && ballLeft < block.x + block.width && ballBottom > block.y && ballTop < block.y + block.height) {
+                     ball.speedY *= -1;
+
+                    if (playerIndex === 1) scoreValue1++;
+                    else if (playerIndex === 2) scoreValue2++;
+                    blocks.splice(i, 1);
+
+                    if (blocks.length === 0) {
+                        handleWin(playerIndex);
+                        return;
+                    }
+                    break;
+                }
+            }
+
+             if (ballBottom > canvas.height) {
+                handleLifeLost(playerIndex);
+             }
+        }
+
+         function handleLifeLost(playerIndex) {
+            if (playerIndex === 1) {
+                livesValue1--;
+                ball1Active = false;
+                ball1.reset();
+
+                if (livesValue1 <= 0) {
+                     handleGameOver(gameMode === 1 ? 0 : 2);
+                } else if (gameMode === 2 && !gameOver) {
+                     startRespawnTimer(1);
+                } else if (gameMode === 1 && !gameOver){
+                    idleText1 = new ShowText(160, 230, "20px Arial", "orange", "Lost a life! Click START", context1);
+                }
+            } else if (playerIndex === 2 && gameMode === 2) {
+                livesValue2--;
+                ball2Active = false;
+                ball2.reset();
+
+                if (livesValue2 <= 0) {
+                    handleGameOver(1);
+                } else if (!gameOver) {
+                     startRespawnTimer(2);
+                }
+            }
+        }
+
+        function startRespawnTimer(playerIndex) {
+            if (playerIndex === 1) {
+                if (player1Respawning) return;
+                player1Respawning = true;
+                let countdown = 3;
+                respawnTimer1 = new ShowText(canvas1.width / 2 - 50, canvas1.height / 2, "30px Arial", "orange", `Respawn: ${countdown}`, context1);
+
+                if (respawnIntervalId1) clearInterval(respawnIntervalId1);
+
+                respawnIntervalId1 = setInterval(() => {
+                    if (gameOver) {
+                         clearInterval(respawnIntervalId1); respawnIntervalId1 = null;
+                         respawnTimer1 = null; player1Respawning = false; return;
+                    }
+                    countdown--;
+                    if (countdown > 0) {
+                        respawnTimer1.text = `Respawn: ${countdown}`;
+                    } else {
+                        clearInterval(respawnIntervalId1); respawnIntervalId1 = null;
+                        respawnTimer1 = null;
+                        player1Respawning = false;
+                        if (!gameOver && gameStarted && livesValue1 > 0) {
+                             ball1Active = true;
+                             ball1.speedY = -BALL_START_SPEED_Y;
+                             ball1.speedX = (Math.random() - 0.5) * 2;
+                        }
+                    }
+                }, 1000);
+            } else {
+                if (player2Respawning) return;
+                player2Respawning = true;
+                let countdown = 3;
+                respawnTimer2 = new ShowText(canvas2.width / 2 - 50, canvas2.height / 2, "30px Arial", "orange", `Respawn: ${countdown}`, context2);
+
+                if (respawnIntervalId2) clearInterval(respawnIntervalId2);
+
+                respawnIntervalId2 = setInterval(() => {
+                    if (gameOver) {
+                        clearInterval(respawnIntervalId2); respawnIntervalId2 = null;
+                        respawnTimer2 = null; player2Respawning = false; return;
+                   }
+                    countdown--;
+                    if (countdown > 0) {
+                        respawnTimer2.text = `Respawn: ${countdown}`;
+                    } else {
+                        clearInterval(respawnIntervalId2); respawnIntervalId2 = null;
+                        respawnTimer2 = null;
+                        player2Respawning = false;
+                        if (!gameOver && gameStarted && livesValue2 > 0) {
+                            ball2Active = true;
+                            ball2.speedY = -BALL_START_SPEED_Y;
+                            ball2.speedX = (Math.random() - 0.5) * 2;
+                        }
+                    }
+                }, 1000);
+            }
+        }
+
+        function handleWin(playerIndex) {
+            if (gameOver) return;
+
+             if (playerIndex === 1) {
+                winText1 = new ShowText(180, 280, "30px Arial", "lime", "PLAYER 1 WINS!", context1);
+                 if (gameMode === 2) {
+                     loseText2 = new ShowText(180, 280, "30px Arial", "red", "PLAYER 2 LOST!", context2);
+                 }
+             } else if (playerIndex === 2) {
+                 winText2 = new ShowText(180, 280, "30px Arial", "lime", "PLAYER 2 WINS!", context2);
+                 loseText1 = new ShowText(180, 280, "30px Arial", "red", "PLAYER 1 LOST!", context1);
+             }
+             endGame();
+        }
+
+        function handleGameOver(winningPlayerIndex) {
+            if (gameOver) return;
+
+            if (winningPlayerIndex === 1) {
+                winText1 = new ShowText(180, 280, "30px Arial", "lime", "PLAYER 1 WINS!", context1);
+                if (context2) loseText2 = new ShowText(180, 280, "30px Arial", "red", "PLAYER 2 LOST!", context2);
+            } else if (winningPlayerIndex === 2) {
+                 if (context2) winText2 = new ShowText(180, 280, "30px Arial", "lime", "PLAYER 2 WINS!", context2);
+                 loseText1 = new ShowText(180, 280, "30px Arial", "red", "PLAYER 1 LOST!", context1);
+            } else {
+                 loseText1 = new ShowText(190, 280, "30px Arial", "red", "GAME OVER!", context1);
+            }
+            endGame();
+        }
+
+        function endGame() {
+             gameOver = true;
+             ball1Active = false;
+             ball2Active = false;
+             if (ball1) ball1.speedX = ball1.speedY = 0;
+             if (ball2) ball2.speedX = ball2.speedY = 0;
+             removeInputListeners();
+
+             if (respawnIntervalId1) { clearInterval(respawnIntervalId1); respawnIntervalId1 = null; }
+             if (respawnIntervalId2) { clearInterval(respawnIntervalId2); respawnIntervalId2 = null; }
+             respawnTimer1 = null;
+             respawnTimer2 = null;
+             player1Respawning = false;
+             player2Respawning = false;
+        }
+
+        function restartButton() {
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+
+            removeInputListeners();
+
+             if (respawnIntervalId1) clearInterval(respawnIntervalId1);
+             if (respawnIntervalId2) clearInterval(respawnIntervalId2);
+             respawnIntervalId1 = null;
+             respawnIntervalId2 = null;
+
+             resetGameVariables();
+
+             gameAreaContainer.style.display = 'none';
+             gameButtons.style.display = 'none';
+             startScreen.style.display = 'block';
+             gameMode = null;
+
+             clearCanvas();
+        }
+
+    </script>
+</body>
+
+</html>
